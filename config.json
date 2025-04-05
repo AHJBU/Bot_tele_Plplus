@@ -1,0 +1,39 @@
+{
+  "خبر عاجل": {
+    "template_path": "templates/breaking_news.png",
+    "font": "fonts/4_F4.ttf",
+    "font_size": 12,
+    "font_color": "#211c1c",
+    "alignment": {
+      "horizontal": "center",
+      "vertical": "center"
+    },
+    "line_spacing": 14,
+    "max_words_per_line": 5
+  },
+  "خبر عادي": {
+    "template_path": "templates/normal_news.png",
+    "font": "fonts/4_F4.ttf",
+    "font_size": 12,
+    "font_color": "#FFFFFF",
+    "alignment": {
+      "horizontal": "center",
+      "vertical": "center",
+      "vertical_offset": 200
+    },
+    "line_spacing": 14,
+    "max_words_per_line": 5
+  },
+  "متابعة إخبارية": {
+    "template_path": "templates/update_news.png",
+    "font": "fonts/4_F4.ttf",
+    "font_size": 12,
+    "font_color": "#373737",
+    "alignment": {
+      "horizontal": "center",
+      "vertical": "center"
+    },
+    "line_spacing": 14,
+    "max_words_per_line": 5
+  }
+}
