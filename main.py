@@ -103,7 +103,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await generate_image(update, context)
 
-async def main():
+def main():
     try:
         TOKEN = os.getenv('TELEGRAM_TOKEN')
         if not TOKEN:
@@ -114,10 +114,9 @@ async def main():
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
         logger.info("Bot started successfully")
-        await app.run_polling()
+        app.run_polling()  # بدون await
     except Exception as e:
         logger.error(f"فشل تشغيل البوت: {e}", exc_info=True)
 
 if __name__ == '__main__':
-    import asyncio
-    asyncio.run(main())
+    main()
