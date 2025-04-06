@@ -1,85 +1,121 @@
+import os
+import logging
+import textwrap
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from PIL import Image, ImageDraw, ImageFont
+
+# إعدادات التسجيل
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+# لوحة المفاتيح
+keyboard = [
+    ['خبر عاجل', 'خبر عادي'],
+    ['متابعة إخبارية']
+]
+reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def start(update: Update, context: CallbackContext):
+    """Handler لبدء التشغيل"""
+    update.message.reply_text('مرحباً! اختر نوع الخبر:', reply_markup=reply_markup)
+
 def generate_image(update: Update, context: CallbackContext):
+    """Handler لإنشاء الصورة"""
     user_data = context.user_data
-    template_type = user_data.get('template_type')
-    news_text = update.message.text
-
-    if not template_type:
-        update.message.reply_text('الرجاء اختيار نوع الخبر أولاً.')
-        return
-
-    template_info = config.get(template_type, {})
+    
     try:
-        font_path = template_info.get('font')
-        font_size = template_info.get('font_size', 12)
-        font_color = template_info.get('font_color', '#000000')
-        template_path = template_info.get('template_path')
-        line_spacing = template_info.get('line_spacing', 14)
-        max_words = template_info.get('max_words_per_line', 5)
-        alignment = template_info.get('alignment', {'horizontal': 'center', 'vertical': 'center'})
+        # التحقق من وجود نوع الخبر المحدد
+        if 'template_type' not in user_data:
+            update.message.reply_text('الرجاء اختيار نوع الخبر أولاً.')
+            return
 
-        # التحقق من وجود الملفات المطلوبة
-        if not all([font_path, template_path]):
-            missing = []
-            if not font_path: missing.append("font_path")
-            if not template_path: missing.append("template_path")
-            raise FileNotFoundError(f"الملفات المطلوبة غير موجودة: {', '.join(missing)}")
+        template_type = user_data['template_type']
+        template_info = config.get(template_type, {})
+        
+        # التحقق من وجود جميع المتطلبات
+        required_fields = ['font', 'font_size', 'font_color', 'template_path']
+        if not all(field in template_info for field in required_fields):
+            missing = [field for field in required_fields if field not in template_info]
+            update.message.reply_text(f'إعدادات ناقصة: {", ".join(missing)}')
+            return
 
-        # معالجة الصورة
-        with Image.open(template_path).convert("RGBA") as image:
-            draw = ImageDraw.Draw(image)
-            
-            try:
-                font = ImageFont.truetype(font_path, font_size)
-            except IOError:
-                raise ValueError(f"تعذر تحميل الخط من المسار: {font_path}")
-
-            # تقسيم النص إلى أسطر
-            words = news_text.split()
-            lines = []
-            current_line = []
-            
-            for word in words:
-                current_line.append(word)
-                if len(current_line) >= max_words:
-                    lines.append(" ".join(current_line))
-                    current_line = []
-            if current_line:
-                lines.append(" ".join(current_line))
-            
-            # حساب المواضع
-            img_width, img_height = image.size
-            total_text_height = (font_size + line_spacing) * len(lines)
-            
-            # تحديد الموضع الرأسي
-            y = (img_height - total_text_height) / 2
-            if alignment.get('vertical') == 'center' and 'vertical_offset' in alignment:
-                y -= alignment['vertical_offset']
-            
-            # رسم النص
-            for line in lines:
-                text_width = font.getlength(line)
-                x = (img_width - text_width) / 2  # محاذاة أفقية للوسط
-                draw.text((x, y), line, font=font, fill=font_color)
-                y += font_size + line_spacing
-            
-            # حفظ وإرسال الصورة
-            temp_path = "temp.png"
-            image.save(temp_path)
-            with open(temp_path, 'rb') as photo:
-                update.message.reply_photo(photo=photo)
-            
-            # تنظيف الملف المؤقت
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-
+        # تحميل الخط والتصميم
+        font = ImageFont.truetype(template_info['font'], template_info['font_size'])
+        image = Image.open(template_info['template_path']).convert("RGBA")
+        draw = ImageDraw.Draw(image)
+        
+        # معالجة النص
+        lines = textwrap.wrap(update.message.text, width=template_info.get('max_width', 30))
+        
+        # حساب المواضع
+        img_width, img_height = image.size
+        y = template_info.get('y_position', img_height // 2)
+        
+        # رسم النص
+        for line in lines:
+            text_width = draw.textlength(line, font=font)
+            x = (img_width - text_width) / 2  # محاذاة للوسط
+            draw.text((x, y), line, font=font, fill=template_info['font_color'])
+            y += template_info['font_size'] + template_info.get('line_spacing', 10)
+        
+        # حفظ وإرسال الصورة
+        temp_file = "temp_news.png"
+        image.save(temp_file)
+        with open(temp_file, 'rb') as photo:
+            update.message.reply_photo(photo=photo)
+        
     except FileNotFoundError as e:
-        logging.error(f"خطأ في الملفات: {str(e)}")
-        update.message.reply_text("حدث خطأ في تحميل الموارد المطلوبة")
-    except ValueError as e:
-        logging.error(f"خطأ في القيم: {str(e)}")
-        update.message.reply_text("حدث خطأ في إعدادات التصميم")
+        logger.error(f"خطأ في الملف: {str(e)}")
+        update.message.reply_text("تعذر العثور على أحد الملفات المطلوبة")
     except Exception as e:
-        logging.error(f"خطأ غير متوقع: {str(e)}", exc_info=True)
-        update.message.reply_text("حدث خطأ غير متوقع أثناء معالجة الصورة")
+        logger.error(f"خطأ غير متوقع: {str(e)}", exc_info=True)
+        update.message.reply_text('حدث خطأ أثناء معالجة طلبك')
     finally:
+        if 'temp_file' in locals() and os.path.exists(temp_file):
+            os.remove(temp_file)
         user_data.clear()
+
+def handle_message(update: Update, context: CallbackContext):
+    """توجيه الرسائل"""
+    text = update.message.text
+    if text in ['خبر عاجل', 'خبر عادي', 'متابعة إخبارية']:
+        context.user_data['template_type'] = text
+        update.message.reply_text('أرسل نص الخبر الآن:')
+    else:
+        generate_image(update, context)
+
+def main():
+    """الدالة الرئيسية"""
+    try:
+        # استخراج التوكن من متغيرات البيئة
+        TOKEN = os.getenv('TELEGRAM_TOKEN')
+        
+        if not TOKEN:
+            raise ValueError("لم يتم تعيين TELEGRAM_TOKEN")
+        
+        # إنشاء Updater
+        updater = Updater(TOKEN)
+        dispatcher = updater.dispatcher
+        
+        # إضافة Handlers
+        dispatcher.add_handler(CommandHandler("start", start))
+        dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+        
+        # بدء البوت
+        updater.start_polling()
+        logger.info("Bot started successfully")
+        updater.idle()
+        
+    except Exception as e:
+        logger.error(f"فشل تشغيل البوت: {e}")
+
+if __name__ == '__main__':
+    # تحميل الإعدادات
+    with open('config.json', 'r', encoding='utf-8') as f:
+        config = json.load(f)
+    
+    main()
