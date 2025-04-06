@@ -7,7 +7,7 @@ from telegram.ext import (
     Updater,
     CommandHandler,
     MessageHandler,
-    Filters,
+    filters,
     CallbackContext,
     ReplyKeyboardMarkup
 )
@@ -111,7 +111,7 @@ def main():
         
         # إضافة Handlers
         dispatcher.add_handler(CommandHandler("start", start))
-        dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+        dispatcher.add_handler(MessageHandler(filters.text & ~filters.command, handle_message))
         
         # بدء البوت
         updater.start_polling()
