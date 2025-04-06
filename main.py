@@ -126,7 +126,7 @@ def main():
         # تشغيل Webhook
         app.run_webhook(
             listen="0.0.0.0",
-            port=PORT,
+            port=10000,  # استخدم المنفذ 10000
             webhook_url=f"https://{HOSTNAME}/{TOKEN}"
         )
     except Exception as e:
