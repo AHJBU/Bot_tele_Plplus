@@ -1,3 +1,4 @@
-python-telegram-bot[job-queue]==13.7
+--upgrade pip
+python-telegram-bot==13.7
 Pillow==9.0.0
 python-dotenv==0.19.0
