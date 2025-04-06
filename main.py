@@ -109,12 +109,26 @@ def main():
         if not TOKEN:
             raise ValueError("يرجى تعيين TELEGRAM_TOKEN في متغيرات البيئة")
 
+        # قراءة اسم النطاق الذي توفره Render تلقائياً في متغير البيئة
+        HOSTNAME = os.getenv('RENDER_EXTERNAL_HOSTNAME')
+        if not HOSTNAME:
+            raise ValueError("RENDER_EXTERNAL_HOSTNAME غير متوفر")
+
+        # رقم المنفذ الذي تحدده Render تلقائياً
+        PORT = int(os.environ.get('PORT', 8443))
+
         app = ApplicationBuilder().token(TOKEN).build()
         app.add_handler(CommandHandler("start", start))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-        logger.info("Bot started successfully")
-        app.run_polling()  # بدون await
+        logger.info("Bot started with Webhook")
+
+        # تشغيل Webhook
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            webhook_url=f"https://{HOSTNAME}/{TOKEN}"
+        )
     except Exception as e:
         logger.error(f"فشل تشغيل البوت: {e}", exc_info=True)
 
