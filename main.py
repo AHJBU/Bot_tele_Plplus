@@ -5,9 +5,9 @@ import textwrap
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
+    ContextTypes,
     CommandHandler,
     MessageHandler,
-    ContextTypes,
     filters
 )
 from PIL import Image, ImageDraw, ImageFont
@@ -20,18 +20,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # لوحة المفاتيح
-keyboard = [
-    ['خبر عاجل', 'خبر عادي'],
-    ['متابعة إخبارية']
-]
+keyboard = [['خبر عاجل', 'خبر عادي'], ['متابعة إخبارية']]
 reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
+# تحميل الإعدادات من config.json
+with open('config.json', 'r', encoding='utf-8') as f:
+    config = json.load(f)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text('مرحباً! اختر نوع الخبر:', reply_markup=reply_markup)
+    await update.message.reply_text("مرحباً! اختر نوع الخبر:", reply_markup=reply_markup)
 
 async def generate_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
-
     try:
         if 'template_type' not in user_data:
             await update.message.reply_text('الرجاء اختيار نوع الخبر أولاً.')
@@ -50,35 +50,36 @@ async def generate_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
         image = Image.open(template_info['template_path']).convert("RGBA")
         draw = ImageDraw.Draw(image)
 
-        # إعدادات النص
         max_words = template_info.get('max_words_per_line', 5)
-        text_color = template_info['font_color']
+        words = update.message.text.split()
+        lines = [' '.join(words[i:i + max_words]) for i in range(0, len(words), max_words)]
+
         line_spacing = template_info.get('line_spacing', 10)
+        total_text_height = len(lines) * (template_info['font_size'] + line_spacing)
+        img_width, img_height = image.size
+
         alignment = template_info.get('alignment', {})
+        vertical_align = alignment.get('vertical', 'center')
         vertical_offset = alignment.get('vertical_offset', 0)
 
-        # تقسيم النص إلى أسطر
-        words = update.message.text.split()
-        lines = [" ".join(words[i:i + max_words]) for i in range(0, len(words), max_words)]
-
-        img_width, img_height = image.size
-        total_text_height = len(lines) * (template_info['font_size'] + line_spacing)
-
-        # المحاذاة الرأسية
-        if alignment.get('vertical') == 'center':
+        if vertical_align == 'center':
             y = (img_height - total_text_height) / 2 + vertical_offset
         else:
             y = vertical_offset
 
         for line in lines:
             text_width = draw.textlength(line, font=font)
-            # المحاذاة الأفقية
-            if alignment.get('horizontal') == 'center':
+            horizontal_align = alignment.get('horizontal', 'center')
+            if horizontal_align == 'center':
                 x = (img_width - text_width) / 2
+            elif horizontal_align == 'left':
+                x = 20
+            elif horizontal_align == 'right':
+                x = img_width - text_width - 20
             else:
-                x = 0
+                x = (img_width - text_width) / 2
 
-            draw.text((x, y), line, font=font, fill=text_color)
+            draw.text((x, y), line, font=font, fill=template_info['font_color'])
             y += template_info['font_size'] + line_spacing
 
         temp_file = "temp_news.png"
@@ -86,46 +87,37 @@ async def generate_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
         with open(temp_file, 'rb') as photo:
             await update.message.reply_photo(photo=photo)
 
-    except FileNotFoundError as e:
-        logger.error(f"خطأ في الملف: {str(e)}")
-        await update.message.reply_text("تعذر العثور على أحد الملفات المطلوبة")
     except Exception as e:
-        logger.error(f"خطأ غير متوقع: {str(e)}", exc_info=True)
-        await update.message.reply_text('حدث خطأ أثناء معالجة طلبك')
+        logger.error(f"خطأ: {str(e)}", exc_info=True)
+        await update.message.reply_text("حدث خطأ أثناء إنشاء الصورة.")
     finally:
-        if 'temp_file' in locals() and os.path.exists(temp_file):
-            os.remove(temp_file)
+        if os.path.exists("temp_news.png"):
+            os.remove("temp_news.png")
         user_data.clear()
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-    if text in ['خبر عاجل', 'خبر عادي', 'متابعة إخبارية']:
+    if text in config:
         context.user_data['template_type'] = text
-        await update.message.reply_text('أرسل نص الخبر الآن:')
+        await update.message.reply_text("أرسل نص الخبر الآن:")
     else:
         await generate_image(update, context)
 
 async def main():
     try:
         TOKEN = os.getenv('TELEGRAM_TOKEN')
-
         if not TOKEN:
-            raise ValueError("لم يتم تعيين TELEGRAM_TOKEN")
+            raise ValueError("يرجى تعيين TELEGRAM_TOKEN في متغيرات البيئة")
 
         app = ApplicationBuilder().token(TOKEN).build()
-
         app.add_handler(CommandHandler("start", start))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
         logger.info("Bot started successfully")
         await app.run_polling()
-
     except Exception as e:
-        logger.error(f"فشل تشغيل البوت: {e}")
+        logger.error(f"فشل تشغيل البوت: {e}", exc_info=True)
 
 if __name__ == '__main__':
-    with open('config.json', 'r', encoding='utf-8') as f:
-        config = json.load(f)
-
     import asyncio
     asyncio.run(main())
