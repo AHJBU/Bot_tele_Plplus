@@ -1,8 +1,16 @@
 import os
+import json
 import logging
 import textwrap
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import (
+    Updater,
+    CommandHandler,
+    MessageHandler,
+    Filters,
+    CallbackContext,
+    ReplyKeyboardMarkup
+)
 from PIL import Image, ImageDraw, ImageFont
 
 # إعدادات التسجيل
